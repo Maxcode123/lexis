@@ -136,3 +136,189 @@ mod tests {
         assert_eq!(automaton.consume("cab"), false);
     }
 }
+
+mod nfa {
+    use std::collections::HashSet;
+
+    const EPSILON: &str = "ε";
+
+    pub struct Automaton {
+        pub regex_str: String,
+        pub start_state: State,
+        transition_matrix: TransitionMatrix,
+    }
+
+    impl Automaton {
+        pub fn from_regex(regex_str: &str) -> Automaton {
+            if regex_str.len() == 1 {
+                return Automaton::from_char(regex_str);
+            }
+
+            let (first_char, rest) = regex_str.split_at(1);
+
+            Automaton::from_char(first_char).concatenate(rest)
+        }
+
+        pub fn from_char(character: &str) -> Automaton {
+            let start = State::new(0, false);
+            let end = State::new(1, true);
+
+            let new = Automaton {
+                regex_str: character.to_string(),
+                start_state: start,
+                transition_matrix: TransitionMatrix::new(),
+            };
+
+            new.add_transition(&new.start_state, &end, character);
+
+            return new;
+        }
+
+        pub fn concatenate(&self, regex_str: &str) -> Automaton {
+            let other = Automaton::from_regex(regex_str);
+            let mut new = self.append(other);
+
+            new.append_final();
+            new.insert_start();
+            new.regex_str = self.regex_str.as_str().to_string() + regex_str;
+
+            new
+        }
+
+        pub fn union(&self, regex_str: &str) -> Automaton {
+            let other = Automaton::from_regex(regex_str);
+            let mut new = self.add(other);
+
+            new.append_final();
+            new.insert_start();
+            new.regex_str =
+                self.regex_str.as_str().to_string() + "|" + regex_str;
+
+            new
+        }
+
+        pub fn kleene_closure(&self) -> Automaton {
+            let mut new = Automaton::from_regex(self.regex_str.as_str());
+
+            for end_state in new.end_states() {
+                new.add_transition(&new.start_state, end_state, EPSILON);
+            }
+
+            new.append_final();
+            new.insert_start();
+
+            for end_state in new.end_states() {
+                new.add_transition(&new.start_state, end_state, EPSILON);
+            }
+
+            new.regex_str = self.regex_str + "*";
+
+            new
+        }
+
+        pub fn add_transition(
+            &mut self,
+            from_state: &State,
+            to_state: &State,
+            symbol: &str,
+        ) {
+            self.transition_matrix
+                .add_transition(from_state, to_state, symbol);
+        }
+
+        pub fn transitions(&self) -> Iter<Transition> {}
+
+        fn append(&self, other: Automaton) -> Automaton {}
+
+        fn add(&self, other: Automaton) -> Automaton {}
+
+        fn append_final(&mut self) {}
+
+        fn insert_start(&mut self) {}
+
+        fn end_states(&self) -> Iter<&State> {}
+    }
+
+    pub struct State {
+        number: usize,
+        name: String,
+        is_final: bool,
+    }
+
+    impl State {
+        pub fn new(number: usize, is_final: bool) -> State {
+            State {
+                number,
+                name: "s".to_string() + number.to_string().as_str(),
+                is_final,
+            }
+        }
+    }
+
+    pub struct Transition<'a> {
+        from_state: &'a State,
+        to_state: &'a State,
+        symbol: String,
+    }
+
+    impl<'a> Transition<'a> {
+        pub fn new(
+            from_state: &'a State,
+            to_state: &'a State,
+            symbol: &str,
+        ) -> Transition<'a> {
+            Transition {
+                from_state,
+                to_state,
+                symbol: symbol.to_string(),
+            }
+        }
+
+        pub fn to_str(&self) -> String {
+            format!(
+                "({}->{},{})",
+                &self.from_state.name, &self.to_state.name, &self.symbol
+            )
+        }
+
+        pub fn from_str(transition_str: &str) -> Transition {}
+    }
+
+    type TransitionHash = String;
+
+    pub struct TransitionMatrix {
+        matrix: HashSet<TransitionHash>,
+    }
+
+    impl TransitionMatrix {
+        pub fn new() -> TransitionMatrix {
+            TransitionMatrix {
+                matrix: HashSet::new(),
+            }
+        }
+
+        pub fn is_valid(
+            &self,
+            from_state: &State,
+            to_state: &State,
+            symbol: &str,
+        ) -> bool {
+            self.matrix.contains(
+                Transition::new(from_state, to_state, symbol).to_str().as_str(),
+            )
+        }
+
+        pub fn add_transition(
+            &mut self,
+            from_state: &State,
+            to_state: &State,
+            symbol: &str,
+        ) {
+            self.matrix.insert(
+                Transition::new(from_state, to_state, symbol)
+                    .to_str()
+                    .to_string(),
+            );
+        }
+    }
+}
